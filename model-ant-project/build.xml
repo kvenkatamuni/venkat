@@ -1,0 +1,85 @@
+<project default="jar" xmlns:jacoco="antlib:org.jacoco.ant">
+  <property name="build.sysclasspath" value="ignore"/>
+
+  <taskdef uri="antlib:org.jacoco.ant" resource="org/jacoco/ant/antlib.xml">
+    <classpath path="lib/jacoco/jacocoant.jar"/>
+  </taskdef>
+  
+  <target name="clean">
+    <delete dir="build"/>
+  </target>
+  
+  <target name="compile" unless="skip.compile">
+    <mkdir dir="build/classes" />
+    <javac srcdir="src" destdir="build/classes" debug="on"/>
+  </target>
+  
+  <target name="jar" depends="compile" unless="skip.jar">
+    <jar file="build/hello.jar">
+      <fileset dir="build/classes"/>
+    </jar>
+  </target>
+  
+  <target name="test-compile">
+    <mkdir dir="build/test-classes" />
+    <javac srcdir="test" destdir="build/test-classes">
+      <classpath>
+        <pathelement path="build/classes"/>
+        <pathelement path="lib/junit.jar"/>
+      </classpath>
+    </javac>
+  </target>
+
+  <target name="test" depends="compile,test-compile">
+    <mkdir dir="build/test-reports"/>
+    <jacoco:coverage enabled="${jacoco}" destfile="build/jacoco.exec">
+      <junit printsummary="yes" haltonfailure="yes" fork="true" forkmode="once">
+        <classpath>
+          <fileset dir="lib" includes="*.jar" />
+          <pathelement path="build/classes" />
+          <pathelement path="build/test-classes" />
+        </classpath>
+        <formatter type="xml"/>
+        <formatter type="plain"/>
+        <batchtest fork="yes" todir="build/test-reports">
+          <fileset dir="test">
+            <include name="**/*Test*.java"/>
+          </fileset>
+        </batchtest>
+      </junit>
+    </jacoco:coverage>
+  </target>
+
+  <target name="findbugs" depends="jar">
+    <taskdef name="findbugs" classname="edu.umd.cs.findbugs.anttask.FindBugsTask">
+      <classpath>
+        <fileset dir="lib/findbugs/lib" includes="*.jar"/>
+      </classpath>
+    </taskdef>
+    <findbugs home="lib/findbugs" output="xml" outputFile="build/findbugs.xml">
+      <sourcePath path="src"/>
+      <class location="build/hello.jar"/>
+    </findbugs>
+  </target>
+
+  <target name="jacoco">
+    <property name="jacoco" value="true"/>
+  </target>
+
+  <target name="jacoco-report" depends="test">
+    <jacoco:report>
+      <executiondata>
+        <file file="build/jacoco.exec"/>
+      </executiondata>
+      <structure name="Test Project">
+        <classfiles>
+          <fileset dir="build/classes"/>
+        </classfiles>
+        <sourcefiles>
+          <fileset dir="src"/>
+        </sourcefiles>
+      </structure>
+      <html destdir="build/jacoco-report"/>
+    </jacoco:report>
+  </target>
+</project>
