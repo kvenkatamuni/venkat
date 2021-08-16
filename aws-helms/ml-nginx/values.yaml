@@ -1,0 +1,9 @@
+replicaCount: 1
+image:
+  repository: gcr.io/jiffysaas1/ml-nginx
+  pullPolicy: Always
+  tag: "4.2"
+  port: 8765
+service:
+  port: 8765
+

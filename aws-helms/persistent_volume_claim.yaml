@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+ name: mldata-root-claim
+spec:
+ accessModes:
+ - ReadWriteMany
+ storageClassName: ""
+ volumeName: fileserver-root
+ resources:
+   requests:
+     storage: 200Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+ name: mldata-invoicecode-claim
+spec:
+ accessModes:
+ - ReadWriteMany
+ storageClassName: ""
+ volumeName: fileserver-invoicecode
+ resources:
+   requests:
+     storage: 200Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+ name: mldata-documentdata-claim
+spec:
+ accessModes:
+ - ReadWriteMany
+ storageClassName: ""
+ volumeName: fileserver-documentdata
+ resources:
+   requests:
+     storage: 200Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+ name: mldata-ssl-certificates-claim
+spec:
+ accessModes:
+ - ReadWriteMany
+ storageClassName: ""
+ volumeName: fileserver-ssl-certificates
+ resources:
+   requests:
+     storage: 25Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+ name: mldata-config-claim
+spec:
+ accessModes:
+ - ReadWriteMany
+ storageClassName: ""
+ volumeName: fileserver-config
+ resources:
+   requests:
+     storage: 25Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+ name: mldata-output-folder-claim
+spec:
+ accessModes:
+ - ReadWriteMany
+ storageClassName: ""
+ volumeName: fileserver-output-folder
+ resources:
+   requests:
+     storage: 100Gi
+    

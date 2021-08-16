@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    jiffy.app: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      jiffy.app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        jiffy.app: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: {{ .Release.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        readinessProbe:
+          httpGet:
+            path: /api/version/
+            port: 8651
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        ports:
+          - containerPort: {{ .Values.image.port }}    
+        env:
+        {{- range $.Values.image.env }}
+          - name: {{ .name }}
+          {{- if .value }}
+            value: {{ .value | quote }}
+          {{- end -}}
+        {{- end }}
+        command: ["gunicorn"]
+        args: ["--bind", "0.0.0.0:8651", "--workers=2", "--timeout", "360", "--chdir", "/host/deploy/webserver", "wsgi:app"]
+        volumeMounts: 
+          #- mountPath: "/host"
+          #name: "mldata-invoicecode-volume"
+        - mountPath: "/documentdata"
+          name: "mldata-documentdata-volume"
+      volumes:
+        #- name: "mldata-invoicecode-volume"
+        #  persistentVolumeClaim:
+        #    claimName: "mldata-invoicecode-claim"
+        - name: "mldata-documentdata-volume"
+          persistentVolumeClaim:
+            claimName: "mldata-documentdata-claim"

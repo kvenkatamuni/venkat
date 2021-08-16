@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "pdf2json.fullname" . }}-test-connection"
+  labels:
+    {{- include "pdf2json.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['{{ include "pdf2json.fullname" . }}:{{ .Values.service.port }}']
+  restartPolicy: Never

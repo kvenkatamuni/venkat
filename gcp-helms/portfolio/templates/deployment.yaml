@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "portfolio.fullname" . }}
+  labels:
+    {{- include "portfolio.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "portfolio.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "portfolio.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      volumes:
+      - name: "mldata-documentdata-volume"
+        persistentVolumeClaim:
+          claimName: "mldata-documentdata-claim"
+      - name: "mldata-output-volume"
+        persistentVolumeClaim:
+          claimName: "mldata-output-claim"
+      - name: "mldata-config-volume"
+        persistentVolumeClaim:
+          claimName: "mldata-config-claim"
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8579
+          env:
+          {{- range $.Values.image.env }}
+            - name: {{ .name }}
+            {{- if .value }}
+              value: {{ .value | quote }}
+            {{- end -}}
+          {{- end }}
+          command: ["/bin/sh", "-c"]
+          args: ["/usr/local/bin/python3 /usr/local/bin/gunicorn --bind 0.0.0.0:8579 --workers=1 --timeout 360 --chdir /home/jiffy/webservice wsgi:app & /usr/local/bin/python3 -m http.server 8000 --bind 0.0.0.0"]
+          volumeMounts:
+          - mountPath: "/home/jiffy/input_folder"
+            name: "mldata-documentdata-volume"
+          - mountPath: "/home/jiffy/output_folder"
+            name: "mldata-output-volume"
+          - mountPath: "/home/jiffy/config"
+            name: "mldata-config-volume"      
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

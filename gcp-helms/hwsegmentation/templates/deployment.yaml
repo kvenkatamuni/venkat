@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    jiffy.app: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      jiffy.app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        jiffy.app: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: {{ .Release.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        ports:
+          - containerPort: {{ .Values.image.port }}  
+        env:
+        {{- range $.Values.image.env }}
+          - name: {{ .name }}
+          {{- if .value }}
+            value: {{ .value | quote }}
+          {{- end -}}
+        {{- end }}
+        # command: ["gunicorn"]
+        # args: ["--bind", "0.0.0.0:8567", "--workers=1", "--timeout", "360", "--chdir", "/home/jiffy/webservice", "wsgi:app"]
+        command: ["/bin/sh", "-c"]
+        args: ["/usr/local/bin/python3 /usr/local/bin/gunicorn --bind 0.0.0.0:8567 --workers=1 --timeout 360 --chdir /home/jiffy/webservice wsgi:app & /usr/local/bin/python3 -m http.server 8000 --bind 0.0.0.0"]
+        # command:
+        #   - /bin/entrypoint.sh
+        volumeMounts: 
+        - mountPath: "/home/jiffy/input_folder"
+          name: "mldata-documentdata-volume"
+        - mountPath: "/home/jiffy/output_folder"
+          name: "mldata-output-volume"
+        - mountPath: "/home/jiffy/config"
+          name: "mldata-config-volume"
+        # - mountPath: /bin/entrypoint.sh
+        #   name: "configmap-volume"
+        #   readOnly: true
+        #   subPath: entrypoint.sh
+      volumes:
+        - name: "mldata-documentdata-volume"
+          persistentVolumeClaim:
+            claimName: "mldata-documentdata-claim"
+        - name: "mldata-output-volume"
+          persistentVolumeClaim:
+            claimName: "mldata-output-claim"
+        - name: "mldata-config-volume"
+          persistentVolumeClaim:
+            claimName: "mldata-config-claim"
+        # - name: "configmap-volume"
+        #   configMap:
+        #     defaultMode: 0700
+        #     name: "hwsegmentation-configmap"

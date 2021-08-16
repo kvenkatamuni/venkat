@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+ name: fileserver-output
+spec:
+ capacity:
+   storage: 200Gi
+ accessModes:
+ - ReadWriteMany
+ nfs:
+   path: /jiffymlk8s/output
+   server: 10.103.207.154

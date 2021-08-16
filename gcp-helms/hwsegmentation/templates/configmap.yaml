@@ -1,0 +1,9 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hwsegmentation-configmap
+data:
+  entrypoint.sh: |-
+    #!/bin/bash
+    gunicorn --bind 0.0.0.0:8567 --workers=1 --timeout 360 --chdir /home/jiffy/webservice wsgi:app && python3 -m http.server 8000 --bind 0.0.0.0

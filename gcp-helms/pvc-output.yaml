@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+ name: mldata-output-claim
+spec:
+ accessModes:
+ - ReadWriteMany
+ storageClassName: ""
+ volumeName: fileserver-output
+ resources:
+   requests:
+     storage: 100Gi
+

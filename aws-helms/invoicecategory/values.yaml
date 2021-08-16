@@ -1,0 +1,16 @@
+replicaCount: 1
+image:
+  repository: gcr.io/jiffysaas1/invoicecategory
+  pullPolicy: Always
+  tag: "JARVIS-MAIN-T4.3.07608Apr21"
+  port: 8652
+  env:
+  - name: PYTHONIOENCODING
+    value: "UTF-8"
+  - name: PATH
+    value: "/root/.local/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  # - name: PYTHONPATH
+  #   value: ":/mllib"
+service:
+  port: 8652
+

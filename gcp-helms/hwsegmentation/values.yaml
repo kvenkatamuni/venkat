@@ -1,0 +1,16 @@
+replicaCount: 1
+image:
+  repository: gcr.io/jiffysaas1/hwsegmentation
+  pullPolicy: Always
+  tag: "JARVIS-MAIN-HWSegmentaion_3130Mar21"
+  port: 8567
+  env:
+  - name: CPUCOUNT
+    value: "2"
+  - name: PYTHONIOENCODING
+    value: "UTF-8"
+  - name: PATH
+    value: "/root/.local/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+service:
+  port: 8567
+

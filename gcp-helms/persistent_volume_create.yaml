@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+ name: fileserver-root
+spec:
+ capacity:
+   storage: 200Gi
+ accessModes:
+ - ReadWriteMany
+ nfs:
+   path: /jiffymlk8s
+   server: 10.103.207.154
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+ name: fileserver-invoicecode
+spec:
+ capacity:
+   storage: 200Gi
+ accessModes:
+ - ReadWriteMany
+ nfs:
+   path: /jiffymlk8s/invoicecode
+   server: 10.103.207.154
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+ name: fileserver-documentdata
+spec:
+ capacity:
+   storage: 200Gi
+ accessModes:
+ - ReadWriteMany
+ nfs:
+   path: /jiffymlk8s/documentdata
+   server: 10.103.207.154
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+ name: fileserver-ssl-certificates
+spec:
+ capacity:
+   storage: 25Gi
+ accessModes:
+ - ReadWriteMany
+ nfs:
+   path: /jiffymlk8s/ssl-certificates
+   server: 10.103.207.154
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+ name: fileserver-config
+spec:
+ capacity:
+   storage: 25Gi
+ accessModes:
+ - ReadWriteMany
+ nfs:
+   path: /jiffymlk8s/config
+   server: 10.103.207.154
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+ name: fileserver-output-folder
+spec:
+ capacity:
+   storage: 100Gi
+ accessModes:
+ - ReadWriteMany
+ nfs:
+   path: /jiffymlk8s/output_folder
+   server: 10.103.207.154
