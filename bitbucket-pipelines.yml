@@ -1,0 +1,89 @@
+image:
+  name: atlassian/default-image:2
+clone:
+  depth: 3
+
+options:
+  docker: true
+  size: 2x
+
+definitions:
+  caches:
+    sonar: ~/.sonar/cache
+  steps:
+    - step: &sonarcloud
+        name: analyze on SonarCloud
+        caches:
+          - sonar
+        script:
+          - pipe: sonarsource/sonarcloud-scan:1.2.2
+            variables:
+              SONAR_HOST_URL: ${SONAR_HOST_URL}"
+              SONAR_SCANNER_OPTS: -Xmx1024m
+              SONAR_TOKEN: ${SONAR_TOKEN}
+              DEBUG: "true"
+    - step: &snyk
+        name: Snyk scan
+        clone:
+          depth: 1
+        image: snyk/snyk-cli:python-3.8
+        caches:
+          - pip
+        script:
+          - mkdir SnykReports
+          - Tag="${BITBUCKET_BRANCH}-${BITBUCKET_BUILD_NUMBER}"
+          - snyk config set api=$SNYK_TOKEN
+          - pip install -r requirements.txt
+          - snyk test --policy-path=$PWD/.snyk --json | snyk-to-html -o $Tag-snykreport.html || echo 'true'
+          - cp -rf $Tag-snykreport.html  SnykReports 
+        artifacts:
+          - SnykReports/*
+    - step: &trivvy        
+        name: trivvy scan      
+        clone:
+          depth: 1
+        image: aquasec/trivy:latest
+        script:
+        - Tag="${BITBUCKET_BRANCH}-${BITBUCKET_BUILD_NUMBER}"
+        - mkdir trivvyReports
+        - trivy fs --format template --template "@contrib/html.tpl" -o $Tag-trvivyreport.html $PWD
+        - cp -rf $Tag-trvivyreport.html trivvyReports     
+        artifacts:
+         - trivvyReports/*
+         - SnykReports/*
+
+    - step: &check-quality-gate-sonarcloud
+        name: Check the Quality Gate on SonarCloud
+        script:
+          - pipe: sonarsource/sonarcloud-quality-gate:0.1.5
+            variables:
+              SONAR_TOKEN: ${SONAR_TOKEN}
+    
+    - step: &publish
+        name: Security reports Publish
+        clone:
+          enabled: false
+        artifacts:
+           download: true #download artifacts in this step
+           paths: 
+             - trivvyReports/*
+             - SnykReports/*
+        image: amazon/aws-cli
+        size: 1x
+        script:
+          - Tag="${BITBUCKET_BRANCH}-${BITBUCKET_BUILD_NUMBER}"
+          - if [[ -d SnykReports ]]; then aws s3 cp SnykReports/$Tag-snykreport.html s3://$S3_BUCKET_NAME/${BITBUCKET_REPO_SLUG}/Snyk/; else echo "Nothing to publish"; exit 0; fi 
+          - if [[ -d trivvyReports ]]; then aws s3 cp trivvyReports/$Tag-trvivyreport.html s3://$S3_BUCKET_NAME/${BITBUCKET_REPO_SLUG}/Trivy/; else echo "Nothing to publish"; exit 0; fi      
+          - echo "Trivy results Url- https://s3.$AWS_REGION.amazonaws.com/$S3_BUCKET_NAME/${BITBUCKET_REPO_SLUG}/Trivy/$Tag-trvivyreport.html"
+          - echo "Snyk results Url- https://s3.$AWS_REGION.amazonaws.com/$S3_BUCKET_NAME/${BITBUCKET_REPO_SLUG}/Snyk/$Tag-snykreport.html"
+
+pipelines:
+  branches:
+    
+    JARVIS-*:
+      - parallel :
+          - step: *sonarcloud
+          - step: *snyk
+          - step: *trivvy
+      - step: *check-quality-gate-sonarcloud
+      - step: *publish

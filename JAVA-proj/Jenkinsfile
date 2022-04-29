@@ -1,0 +1,442 @@
+import java.text.SimpleDateFormat
+
+def dateCurrent = new Date()
+dateFormat = new SimpleDateFormat('ddMMMyy')
+def currentDateTime = dateFormat.format(dateCurrent)
+println currentDateTime
+
+def versionCommand          = ''
+def lastCommitMessage       = ''
+def commit_message          = ""
+def commit_hash             = ""
+def commit_author           = ""
+def commit_author_mail      = ""
+def TagName                 = ""
+def pid                     =""
+def REPO_NAME               = "anthill"
+def branch_tag              = ""
+def sq_pass                 = "0bf68d35b3"
+def qualitygate             = ""
+def buildstatus             = ""
+def publishstatus           = ""
+def deploymentstatus        = ""
+//Build Block
+def url                  	= ""  // artifact_url from deployment
+def componentBuildStatus 	= ""  // build_status
+def sonar_status         	= "" // status of the sonar
+def branch_name          	= "" // change value to branch_name
+def repo_name            	= "anthill" // add repo name here
+def version_details      	= "Dummy_4.2"  // dummy value for builds
+def nexus_url            	= "https://repo.jiffy.ai"
+def nexus_creds          	= "jiffy/jiffy1" // change this
+def artifact_details     	= ""  // need to fetch this while uploading after build + sonar is success
+def git_commit           	= ""
+// Build Block
+
+//nexus_uploader
+def artifact_id         	= "anthill_server" //componentname
+def artifact_classifier 	= "QA" //main,qa,dev
+def artifact_filename   	= "anthill_server_qa.tar.gz"   //artifactname to be uploaded
+def artifact_filetype   	= "tar.gz" //jar or tar
+def artifact_groupid    	= "anthill" // group id
+def artifact_reponame   	= "jarvis-qa-s3" //repository to which the asset should go
+def artifact_url        	= "repo.jiffy.ai"
+def artifact_uploadurl  	= "" //final output
+def nexusArtifactName   	= ""
+//sonar qube
+def projectKey  		    = ""
+def projectName 		    = ""
+def repoSlug    		    = ""
+def login       		    = ""
+def projectVersion 		    = 1.0
+def a          			    = ""
+def b           		    = ""
+def len                     = ""
+
+pipeline {
+    agent none
+    stages {
+        stage('Build') {
+            agent { node { label 'Jenkins_linux_node' } }
+            steps {
+                script {
+                    echo "$env.BRANCH_NAME" 
+                    a = "$env.BRANCH_NAME"
+                    b = a.split('-')
+                    len = b.size()
+                    if (BRANCH_NAME 		== "JARVIS-DEV") {
+						projectKey  		= "anthill "
+						projectName 		= "anthill "
+                        projectVersion      = 1.0 // for vibranium
+						repoSlug    		= "anthill "
+						login       		= "265cf086f0b5b4920491aa4c37c2925ca8ce690b"
+
+						artifact_classifier = "DEV" //main,qa,dev
+						artifact_id         = "anthill_server" //componentname
+						artifact_filename   = "anthill_server.tar.gz"   //artifactname to be uploaded
+						artifact_filetype   = "tar.gz" //jar or tar
+						artifact_groupid    = "anthill" // group id
+						artifact_reponame   = "jarvis-dev-s3" //repository to which the asset should go
+						artifact_url        = "repo.jiffy.ai"
+					} else if (BRANCH_NAME  == "JARVIS-QA") {
+						projectKey  		= "anthill-qa"
+						projectName 		= "anthill-qa"
+                        projectVersion      = 1.0 // for vibranium
+						repoSlug    		= "anthill-qa"
+						login       		= "15352efa741ea10b3c39698a9c7a7603d7cfe52f"
+
+						artifact_classifier = "QA" //main,qa,dev
+						artifact_id         = "anthill_server" //componentname
+						artifact_filename   = "anthill_server_qa.tar.gz"   //artifactname to be uploaded
+						artifact_filetype   = "tar.gz" //jar or tar
+						artifact_groupid    = "anthill" // group id
+						artifact_reponame   = "jarvis-qa-s3" //repository to which the asset should go
+						artifact_url        = "repo.jiffy.ai"
+					} else if (BRANCH_NAME  == "JARVIS-MAIN") {
+						projectKey  		= "anthill-main"
+						projectName 		= "anthill-main"
+                        projectVersion      = 1.0 // for vibranium
+						repoSlug    		= "anthill-main"
+						login       		= "1f3fce8ed2027eb251d14748df641c8d38a29183"
+
+						artifact_classifier = "MAIN" //main,qa,dev
+						artifact_id         = "anthill_server" //componentname
+						artifact_filename   = "anthill_server_main.tar.gz"   //artifactname to be uploaded
+						artifact_filetype   = "tar.gz" //jar or tar
+						artifact_groupid    = "anthill" // group id
+						artifact_reponame   = "jarvis-main-s3" //repository to which the asset should go
+						artifact_url        = "repo.jiffy.ai"
+				    } else if (len == 3) {
+						projectKey  		= "anthill_JARVIS-RELEASES"
+						projectName 		= "anthill_JARVIS-RELEASES"
+                        projectVersion      = b[2]
+						repoSlug    		= "anthill_JARVIS-RELEASES"
+						login       		= "1f3fce8ed2027eb251d14748df641c8d38a29183"
+
+						artifact_classifier = b[2] //main,qa,dev
+						artifact_id         = "anthill_server" //componentname
+						artifact_filename   = "anthill_server_main.tar.gz"   //artifactname to be uploaded
+						artifact_filetype   = "tar.gz" //jar or tar
+						artifact_groupid    = b[2] // group id
+						artifact_reponame   = "jarvis-main-releases" //repository to which the asset should go
+						artifact_url        = "repo.jiffy.ai"
+                        version_details     = b[2] // for vibranium
+                    }
+
+					//nexus artefact name creation
+					nexusArtifactName       = artifact_id + "-" + BUILD_NUMBER + "-" + artifact_classifier + "." + artifact_filetype
+
+					//branchname
+					branch_name             = BRANCH_NAME
+
+					//git tagging
+                    TagName                 = env.BRANCH_NAME + "_" + BUILD_NUMBER + "_" + currentDateTime
+                    commit_message          = sh(script: 'git log -1 --pretty=%B', , returnStdout: true).trim()
+                    commit_hash             = sh(script: 'git log -1 --pretty=%H', , returnStdout: true).trim()
+                    commit_author           = sh(script: 'git log -1 --pretty=%an', , returnStdout: true).trim()
+                    commit_author_mail      = sh(script: 'git log -1 --pretty=%ae', , returnStdout: true).trim()
+                    lastCommitMessage       = sh (
+                        script: 'git log --pretty=format:\'%s\' | head -1',
+                        returnStdout: true
+                    ).trim()
+                    sh("git tag -a $TagName -m 'Build From Jenkins'")
+                    withCredentials([usernamePassword(credentialsId: '4b7e5e6c-5eff-42b7-84f6-b4a4cc2054fd', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
+                        sh('git push https://${GIT_USERNAME}:${GIT_PASSWORD}@bitbucket.org/jiffy_bb_admin/anthill.git --tags')
+                      }
+                      
+                    sh """
+                    mkdir -p ~/.m2/
+                    cp -rf settings.xml ~/.m2/
+                    """ 
+                    sh """
+                        cd anthill
+                        mvn -DskipTests clean package
+                        ls -lart ./target/
+                        cd ./target/
+                        rm -rf anthill_server.tar.gz
+                        tar -cvf ../../anthill_${TagName}.tar.gz anthill-*-exec.jar ../../conf/
+                        """
+                        stash includes: "anthill_${TagName}.tar.gz", name: 'binary'
+                }
+                    echo "anthill_${TagName}" // prints Tag value of stage 1
+            }
+            post {
+	            always {
+	                script {
+                        componentBuildStatus = "${currentBuild.result}"
+	                    buildstatus = "${currentBuild.result}"
+	                    echo "currentBuild result ${currentBuild.result}"
+	                    echo "Current Status: ${buildstatus}"
+	                    bodytext = """<table style="height: 160px; width: 530px; border-color: lightblue;" border="2" cellspacing="2"><tbody><tr><td style="width: 180px;"><strong> Build Status </strong></td><td style="width: 315px; text-align: center;">${buildstatus}</td></tr><tr><td style="width: 180px;"><strong>Executed Stage Name</strong></td><td style="width: 315px; text-align: center;">'${STAGE_NAME}'</td></tr><tr><td style="width: 180px;"><strong>Nexus Registry Url</strong></td><td style="width: 315px; text-align: center;">https://repo.jiffy.ai/</td></tr><tr><td style="width: 180px;"><strong> Console Output </strong></td><td style="width: 315px; text-align: center;"><a href="$BUILD_URL/consoleText"> <button style="height: 30px; background-color: #15c; border-radius: 4px;"> <strong style="color: #fff;"> View build logs </strong> </button> </a></td></tr><tr><td style="width: 180px;"><strong> Console Credentials </strong></td><td style="width: 315px; text-align: center;">Username <em> user </em> | Password <em> e9beK2&gt;E </em></td></tr></tbody></table>"""
+	                }
+	            }
+            }
+        }
+
+        stage('SonarQube analysis') {
+			environment {
+				SCANNER_HOME = tool 'JenkinsSonarQube-ScannerPlugin'
+			}
+			agent { node { label 'Jenkins_linux_node' } }
+			options {
+				skipDefaultCheckout()
+			}
+			steps {
+				script {
+					withSonarQubeEnv(credentialsId: 'sonarqube', installationName: 'SonarQube') {
+						def sonarScanCommand = '$SCANNER_HOME/bin/sonar-scanner -Dsonar.projectKey=' + projectKey + ' -Dsonar.projectName=' + projectName + ' -Dsonar.projectVersion=' + projectVersion + ' -Dsonar.login=' + login +' -Dsonar.bitbucket.repoSlug='+ repoSlug +' -e'
+                        SONAR_SCAN_OUTPUT = sh (
+							script: sonarScanCommand,
+							returnStdout: true
+						).trim()
+						echo "Output ---------------"
+						echo "${SONAR_SCAN_OUTPUT}"
+						SONAR_SCAN_API_URL = sh (
+							script: 'tail -1 .scannerwork/report-task.txt',
+							returnStdout: true
+						).trim()
+						SONAR_SCAN_DASHBOARD = sh (
+							script: """awk 'NR==4' .scannerwork/report-task.txt""",
+							returnStdout: true
+						).trim()
+
+						SONAR_SCAN_DASHBOARD = SONAR_SCAN_DASHBOARD.substring(13);
+						SONAR_SCAN_API_URL = SONAR_SCAN_API_URL.substring(10);
+						echo "${SONAR_SCAN_API_URL}"
+						echo "${SONAR_SCAN_DASHBOARD}"
+						sh "wget --auth-no-challenge --no-check-certificate --user=$REPO_NAME  --password=$sq_pass -O apidetails.json $SONAR_SCAN_API_URL"
+					}
+				}
+			}
+		}
+		stage("Quality gate") {
+			steps {
+				script {
+					timeout(time: 5, unit: 'MINUTES') {
+					qualitygate = waitForQualityGate() }
+					echo "${qualitygate.status}"
+					if (qualitygate.status != 'OK'){
+						error "Pipeline aborted due to quality gate failure: ${qualitygate.status}"
+					} else {
+						sonar_status = "Success"
+					}
+				}
+			}
+			post {
+				always {
+					script {
+						buildstatus = "${currentBuild.result}"
+						echo "${buildstatus}"
+						bodytext = bodytext+"""<table style="height: 160px; border-color: lightblue; width: 530px;" border="2" cellspacing="2"><tbody><tr><td style="width: 180px;"><strong> Sonar Status </strong></td><td style="width: 315px; text-align: center;">${buildstatus}</td></tr><tr><td style="width: 180px;"><strong>Executed Stage Name</strong></td><td style="width: 315px; text-align: center;">${STAGE_NAME}</td></tr><tr><td style="width: 180px;"><strong>Sonar Url</strong></td><td style="width: 315px; text-align: center;">https://sonar.jiffy.ai/</td></tr><tr><td style="width: 180px;"><strong> Sonar Quality Gate</strong></td><td style="width: 315px; text-align: center;">sonar_way</td></tr><tr><td style="width: 180px;"><strong> Sonar Output </strong></td><td style="width: 315px; text-align: center;"><a href="$SONAR_SCAN_DASHBOARD"> <button> <strong> View sonar result logs </strong> </button> </a></td></tr><tr><td style="width: 180px;"><strong> Sonar Credentials </strong></td><td style="width: 315px; text-align: center;">Username <em>$REPO_NAME&nbsp;</em> | Password <em>$sq_pass</em></td></tr></tbody></table>"""
+					}
+				}
+			}
+		}  
+        stage('Publish To Nexus') {
+           agent { node { label 'Jenkins_linux_node' } }
+           options {
+                skipDefaultCheckout()
+                }
+            steps {
+                    script {
+                        sh 'pwd'
+                        unstash 'binary'
+                        sh """
+                        mv anthill_${TagName}.tar.gz ${artifact_filename}
+                        echo "uploading to nexus"
+
+                        """
+                        artifact_uploadurl = 'https://' + artifact_url + "/repository/" + artifact_reponame + "/" + artifact_groupid + "/" + artifact_id + "/" + BUILD_NUMBER + "/" + artifact_id + "-"+ BUILD_NUMBER + "-" + artifact_classifier + "." + artifact_filetype
+					    println (artifact_uploadurl)
+
+					    sh "curl -k -v -u jiffydev:2rzi8c9f8puhl9Qu5cz4 --upload-file ${artifact_filename} ${artifact_uploadurl}"
+						scriptcommand = 'curl -vv -X POST -uadmin:welcome12345678 "https://vibranium.jiffy.ai/backend/release/api/addbuild" -d "projectname=' + repo_name + '" -d "reponame=' + repo_name + '" -d "buildnumber=$BUILD_NUMBER" -d "version=' + version_details + '" -d "gitcommitdetails=' + commit_hash + '" -d "tagname=' + TagName + '" -d "branchname=' + branch_name + '" -d "qualitygatestatus=' + sonar_status + '" -d "buildstatus=' + componentBuildStatus + '" -d "artefactdetails=' + artifact_uploadurl + '" -d "nexuscredentials=' + nexus_creds + '" -d "nexusurl=' + nexus_url + '"'
+						sh returnStdout: true, script: scriptcommand
+                    }
+                }
+            post {
+	            always {
+	                script {
+						publishstatus = "${currentBuild.result}"
+						echo "${publishstatus}"
+						bodytext = bodytext+"""<table style="height: 160px; border-color: lightblue; width: 530px;" border="2" cellspacing="2"><tbody><tr><td style="width: 180px;"><strong> Publish Status </strong></td><td style="width: 315px; text-align: center;">${publishstatus}</td></tr><tr><td style="width: 180px;"><strong>Executed Stage Name</strong></td><td style="width: 315px; text-align: center;">${STAGE_NAME}</td></tr><tr><td style="width: 180px;"><strong>Artifact Url</strong></td><td style="width: 315px; text-align: center;">https://repo.jiffy.ai/</td></tr><tr><td style="width: 180px;"><strong> Artifact Credentials </strong></td><td style="width: 315px; text-align: center;">Username <em>jiffydev&nbsp;</em> | Password <em>2rzi8c9f8puhl9Qu5cz4</em></td></tr></tbody></table>"""
+					}
+	            }
+            }
+        }
+        stage('anthill Deploy To DIT') {
+            agent { label 'dit3' }
+            options {
+                skipDefaultCheckout()
+                }
+            when{
+            branch "JARVIS-DEV"
+             }
+            steps {
+                    sh """         
+                        echo $SHELL
+                        cd $JIFFY_HOME/uploads
+                        echo "removing old files"
+                        rm -rf anthill_*.tar.gz anthill-*-exec.jar
+                        echo "Downloading Tar"
+                        curl -k -X GET -u jiffydev:2rzi8c9f8puhl9Qu5cz4 "${artifact_uploadurl}" -O                         
+                        echo "Taking backup of anthill"
+                        mkdir -p $JIFFY_HOME/uploads/backup/anthill_${TagName}/
+                        mkdir -p $JIFFY_HOME/deploy/anthill/bin
+                        cp -rf $JIFFY_HOME/deploy/anthill/* $JIFFY_HOME/uploads/backup/anthill_${TagName}/
+                      
+                        sleep 5
+                        """
+                    script {
+                        sh '''
+                        supervisorctl stop anthill
+                        sleep 5          
+                        echo "kill anthill"
+                        #ps -ef | grep '[a]nthill-'
+                        for pid in $(ps -ef | grep '[a]nthill-' | grep -v grep | awk '{print $2}');
+                        do
+                        if [ ! -z $pid ]
+                        then
+                           echo "Hello from" $pid
+                           kill -9 $pid
+                        fi
+                        #echo $pid
+                        #kill -9 $pid
+                        done
+                          '''
+                        }
+                    
+                      sh """
+                        sleep 3
+
+                        echo " Removal of existing files"
+                        rm -rf $JIFFY_HOME/deploy/anthill/*
+                        echo "deploying new anthill jar"
+                        cd $JIFFY_HOME/uploads
+                        tar -xvf ${nexusArtifactName}
+                        mkdir -p $JIFFY_HOME/deploy/anthill/bin/
+                        cp -rf anthill*.jar $JIFFY_HOME/deploy/anthill/bin/
+                        cp -rf conf/ $JIFFY_HOME/deploy/anthill/
+
+                        echo " removing anthill tar"
+                        cd $JIFFY_HOME/uploads
+                        rm -rf ${nexusArtifactName} conf/ anthill-*-exec.jar
+                        sleep 2
+                        echo " Starting anthill"
+                        chmod +x $JIFFY_HOME/deploy/anthill/conf/start_engines.sh
+                        supervisorctl start anthill
+                        echo "anthill replacement is completed"
+
+
+                    """
+                }
+            post {
+                always {
+                    script {
+                        deploymentstatus = "${currentBuild.result}"
+                        echo "${deploymentstatus}"
+                        bodytext = bodytext+"""<table style="height: 160px; width: 530px; border-color: lightblue;" border="2" cellspacing="2"><tbody><tr><td style="width: 180px;"><strong>Deployment status </strong></td><td style="width: 315px; text-align: center;">${deploymentstatus}</td></tr><tr><td style="width: 160px;"><strong>Executed Stage Name</strong></td><td style="width: 315px; text-align: center;">${STAGE_NAME}</td></tr><tr><td style="width: 160px;"><strong>Deployed node</strong></td><td style="width: 315px; text-align: center;">${NODE_NAME}</td></tr><tr><td style="width: 160px;"><strong><strong>Deployed</strong></strong><strong> Artifact name</strong></td><td style="width: 315px; text-align: center;">${REPO_NAME}</td></tr></tbody></table>"""
+                    }
+                }
+            }
+        }
+        stage('anthill Deploy Patch To Dev') {
+            agent { label 'dit4' }
+            options {
+                skipDefaultCheckout()
+                }
+            when{
+            branch "JARVIS-MAIN-*"
+             }
+            steps {
+                    sh """         
+                        echo $SHELL
+                        cd $JIFFY_HOME/uploads
+                        echo "removing old files"
+                        rm -rf anthill_*.tar.gz anthill-*-exec.jar
+                        echo "Downloading Tar"
+                        curl -k -X GET -u jiffydev:2rzi8c9f8puhl9Qu5cz4 "${artifact_uploadurl}" -O                         
+                        echo "Taking backup of anthill"
+                        mkdir -p $JIFFY_HOME/uploads/backup/anthill_${TagName}/
+                        mkdir -p $JIFFY_HOME/deploy/anthill/bin
+                        cp -rf $JIFFY_HOME/deploy/anthill/* $JIFFY_HOME/uploads/backup/anthill_${TagName}/
+                      
+                        sleep 5
+                        """
+                    script {
+                        sh '''
+                        supervisorctl stop anthill
+                        sleep 5          
+                        echo "kill anthill"
+                        #ps -ef | grep '[a]nthill-'
+                        for pid in $(ps -ef | grep '[a]nthill-' | grep -v grep | awk '{print $2}');
+                        do
+                        if [ ! -z $pid ]
+                        then
+                           echo "Hello from" $pid
+                           kill -9 $pid
+                        fi
+                        #echo $pid
+                        #kill -9 $pid
+                        done
+                          '''
+                        }
+                    
+                      sh """
+                        sleep 3
+
+                        echo " Removal of existing files"
+                        rm -rf $JIFFY_HOME/deploy/anthill/*
+                        echo "deploying new anthill jar"
+                        cd $JIFFY_HOME/uploads
+                        tar -xvf ${nexusArtifactName}
+                        mkdir -p $JIFFY_HOME/deploy/anthill/bin/
+                        cp -rf anthill*.jar $JIFFY_HOME/deploy/anthill/bin/
+                        cp -rf conf/ $JIFFY_HOME/deploy/anthill/
+
+                        echo " removing anthill tar"
+                        cd $JIFFY_HOME/uploads
+                        rm -rf ${nexusArtifactName} conf/ anthill-*-exec.jar
+                        sleep 2
+                        echo " Starting anthill"
+                        chmod +x $JIFFY_HOME/deploy/anthill/conf/start_engines.sh
+                        supervisorctl start anthill
+                        echo "anthill replacement is completed"
+
+
+                    """
+                }
+            post {
+                always {
+                    script {
+                        deploymentstatus = "${currentBuild.result}"
+                        echo "${deploymentstatus}"
+                        bodytext = bodytext+"""<table style="height: 160px; width: 530px; border-color: lightblue;" border="2" cellspacing="2"><tbody><tr><td style="width: 180px;"><strong>Deployment status </strong></td><td style="width: 315px; text-align: center;">${deploymentstatus}</td></tr><tr><td style="width: 160px;"><strong>Executed Stage Name</strong></td><td style="width: 315px; text-align: center;">${STAGE_NAME}</td></tr><tr><td style="width: 160px;"><strong>Deployed node</strong></td><td style="width: 315px; text-align: center;">${NODE_NAME}</td></tr><tr><td style="width: 160px;"><strong><strong>Deployed</strong></strong><strong> Artifact name</strong></td><td style="width: 315px; text-align: center;">${REPO_NAME}</td></tr></tbody></table>"""
+                    }
+                }
+            }
+        } 
+    }
+
+    post {
+        success {
+            script {
+               emailext(
+                subject: "[Build Report]: Success! | ${JOB_NAME} [${BUILD_NUMBER}]",
+                body: "<html><div><div><h1 style='text-align: center;'>${JOB_NAME}</h1></div></div><p>&nbsp;</p><div><div><h2 style='text-align: left; padding-left: 30px;'>Execution Summary: ${JOB_BASE_NAME}</h2><hr /><div>&nbsp;</div></div></div><div>&nbsp;</div>${bodytext}<div><p>&nbsp;</p></div><div><div><h2 style='padding-left: 30px;'><em>Commit Details</em></h2><hr /><div><table style='height: 129px; border-color: lightblue;' border='2' width='429' cellspacing='2'><tbody><tr><td style='width: 160px;'><strong> Branch </strong></td><td style='width: 253px; text-align: center;'>${BRANCH_NAME}</td></tr><tr><td style='width: 160px;'><strong> Author </strong></td><td style='width: 253px; text-align: center;'> ${commit_author}</td></tr><tr><td style='width: 160px;'><strong> Author E-Mail </strong></td><td style='width: 253px; text-align: center;'>${commit_author_mail}</td></tr><tr><td style='width: 160px;'><strong> Commit Message </strong></td><td style='width: 253px; text-align: center;'>${commit_message}</td></tr><tr><td style='width: 160px;'><strong> Commit Hash </strong></td><td style='width: 253px; text-align: center;'>${commit_hash}</td></tr></tbody></table></div></div></div></html>",
+                to: 'devops@jiffy.ai')
+            }
+        }
+        failure {
+            script {
+                emailext (
+                subject: "[Build Report]: Failed! | ${JOB_NAME} [${BUILD_NUMBER}]",
+                body: """
+                        <table width="100%"> <td style="background: #f8f8f8; padding: 10px;"> <div style="text-align: center;"> <div style="padding: 10px; width: 600px; margin: 0 auto; background: #fff; border-radius: 6px;"> <h1> ${JOB_NAME} </h1> </div> </div> <br /> <div> <div style="padding: 10px; width: 600px; margin: 0 auto; background: #fff; border-radius: 6px;"> <h2> Summary </h2> <hr /> <div style="padding-left: 25px; padding-right: 25px;"> <table> <tr> <td width="160px"> <b> Build Status </b> </td> <td> Failed! </td> </tr> <tr> <td> <b> Build Pipeline(job) </b> </td> <td> ${JOB_BASE_NAME} </td> </tr> <tr> <td> <b> NPM Registry </b> </td> <td> https://repo.jiffy.ai/ </td> </tr> <tr> <td> <b> Artifact Output Location </b> </td><td> https://repo.jiffy.ai/repository/jiffybinaries/ </td> </tr> <tr> <td> <b> Console Output </b> </td> <td> <a href="$BUILD_URL/consoleText"> <button style="height: 30px; background-color: #15c; border-radius: 4px;"> <b style="color: #fff;"> View build logs </b> </button> </a> </td> </tr> <tr> <td> <b> Console Credentials </b> </td> <td> Username <i> user </i> | Password <i> e9beK2>E </i> </td> </tr> </table> </div> </div> </div> <br /> <div> <div style="padding: 10px; width: 600px; margin: 0 auto; background: #fff; border-radius: 6px;"> <h2> Commit Details </h2> <hr /> <div style="padding-left: 25px; padding-right: 25px;"> <table> <tr> <td width="160px"> <b> Branch </b> </td> <td> ${BRANCH_NAME} </td> </tr> <tr> <td> <b> Author </b> </td> <td> ${commit_author} </td> </tr> <tr> <td> <b> Author E-Mail </b> </td> <td> ${commit_author_mail} </td> </tr> <tr> <td> <b> Commit Message </b> </td> <td> ${commit_message} </td> </tr> <tr> <td> <b> Commit Hash </b> </td> <td> ${commit_hash} </td> </tr> </table> </div> </div> </div> </td></table>
+                        """,
+                to: "${commit_author_mail},devops@jiffy.ai"
+                        )
+            }
+         }
+    }
+}

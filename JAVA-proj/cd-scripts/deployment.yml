@@ -1,0 +1,60 @@
+---
+- name: Stopping Anthill service
+  supervisorctl:
+    name: anthill
+    state: stopped
+- name: Create backup of anthill
+  copy:
+    src: "{{ JIFFY_PATH }}/deploy/anthill/"
+    dest: "{{ JIFFY_PATH }}/uploads/backup/anthill_{{ currentDateTime }}"
+    remote_src: yes    
+- name: Anthill Deployment
+  block:
+  - name: Remove Existing files
+    file:
+      path: "{{ item.path }}"
+      state: "{{ item.action }}"
+    loop:
+    - { path: "{{ JIFFY_PATH }}/deploy/anthill", action: absent }
+    - { path: "{{ JIFFY_PATH }}/deploy/anthill/bin", action: directory }
+  - name: Deploy new Anthill "{{ artifactName }}"
+    unarchive:
+      src: "{{ anthillArtefactPath['dest'] }}"
+      dest: "{{ item.dest }}"
+      exclude: "{{ item.exclude }}"
+      extra_opts: "{{ item.option | default(omit) }}"
+      remote_src: yes
+    with_items:
+      - { dest: "{{ JIFFY_PATH }}/deploy/anthill/bin/", exclude: [conf] }
+      - { dest: "{{ JIFFY_PATH }}/deploy/anthill/", exclude: [ anthill*.jar ] }
+  - name: Filepermission
+    file:
+      path: "{{ lookup('fileglob', '{{ JIFFY_PATH }}/deploy/anthill/conf/start_*.sh') }}"
+      mode: 0777
+  - name: Starting Anthill
+    supervisorctl:
+      name: anthill
+      state: started
+  rescue:
+  - name: Stop Anthill
+    supervisorctl:
+      name: anthill
+      state: stopped
+  - name: Remove Existing files of anthill
+    file:
+      path: "{{ JIFFY_PATH }}/deploy/anthill"
+      state: "{{ item }}"
+    loop:
+      - absent
+      - directory
+  - name: Restore Old files
+    copy:
+      src: "{{ JIFFY_PATH }}/uploads/backup/anthill_{{ currentDateTime }}/"
+      dest: "{{ JIFFY_PATH }}/deploy/anthill/"
+      remote_src: yes
+  always:
+  - name: Remove "{{ artifactName }}"
+    file:
+      state: absent
+      path: "{{ anthillArtefactPath['dest'] }}"
+  

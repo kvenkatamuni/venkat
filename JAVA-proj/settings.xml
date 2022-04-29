@@ -1,0 +1,22 @@
+<settings>
+    <servers>
+        <server>
+            <id>jiffy-repo</id>
+            <username>jiffydev</username>
+            <password>2rzi8c9f8puhl9Qu5cz4</password>
+        </server>
+        <server>
+            <id>jiffy-repo-proxy</id>
+            <username>jiffydev</username>
+            <password>2rzi8c9f8puhl9Qu5cz4</password>
+        </server>
+    </servers>
+    <mirrors>
+        <mirror>
+            <id>jiffy-repo-proxy</id>
+            <name>JiffyRepo</name>
+            <url>https://repo.jiffy.ai/repository/jiffy-mvn/</url>
+            <mirrorOf>central</mirrorOf>
+        </mirror>
+    </mirrors>
+</settings>

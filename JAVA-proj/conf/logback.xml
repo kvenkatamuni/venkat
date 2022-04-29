@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration debug="true">
+
+  <property name="LOG_NAME" value="anthill" />
+  <property name="LOG_DIR" value="${JIFFY_HOME}/logs" />
+  <property file="${JIFFY_HOME}/properties/anthill.properties"/>
+  <property scope="context"  name="PORT" value="${fluentd.port}" />
+  <property scope="context"  name="FHOST" value="${fluentd.host}" />
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+      <providers>
+        <!-- provides the timestamp -->
+        <timestamp/>
+        <arguments/>
+        <mdc/>
+        <message/>
+        <!-- provides the fields in the configured pattern -->
+        <pattern>
+          <!-- the pattern that defines what to include -->
+          <pattern>
+            {
+            "TAG": "JIFFY.ANTHILL",
+            "logger": "%logger",
+            "level": "%level",
+            "thread": "%thread"
+            }
+          </pattern>
+        </pattern>
+        <stackTrace/>
+      </providers>
+    </encoder>
+  </appender>
+  <appender name="FILE_ROLL"
+            class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+      <providers>
+        <!-- provides the timestamp -->
+        <timestamp/>
+        <arguments/>
+        <mdc/>
+        <message/>
+        <!-- provides the fields in the configured pattern -->
+        <pattern>
+          <!-- the pattern that defines what to include -->
+          <pattern>
+            {
+            "TAG": "JIFFY.ANTHILL",
+            "logger": "%logger",
+            "level": "%level",
+            "thread": "%thread"
+            }
+          </pattern>
+        </pattern>
+        <stackTrace/>
+      </providers>
+    </encoder>
+    <file>${LOG_DIR}/${LOG_NAME}.log</file>
+    <rollingPolicy
+            class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/${LOG_NAME}-%i.log</fileNamePattern>
+	  <minIndex>1</minIndex>
+	  <maxIndex>10</maxIndex>
+    </rollingPolicy>  
+      <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+      	<maxFileSize>10MB</maxFileSize>
+      </triggeringPolicy>
+  </appender>
+
+  <appender name="FILE_ERROR"
+            class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>ERROR</level>
+    </filter>
+    <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+      <providers>
+        <!-- provides the timestamp -->
+        <timestamp/>
+        <arguments/>
+        <mdc/>
+        <message/>
+        <!-- provides the fields in the configured pattern -->
+        <pattern>
+          <!-- the pattern that defines what to include -->
+          <pattern>
+            {
+            "TAG": "JIFFY.ANTHILL",
+            "logger": "%logger",
+            "level": "%level",
+            "thread": "%thread"
+            }
+          </pattern>
+        </pattern>
+        <stackTrace/>
+      </providers>
+    </encoder>
+    <file>${LOG_DIR}/${LOG_NAME}.error</file>
+    <rollingPolicy
+            class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/${LOG_NAME}-%i.error</fileNamePattern>
+      	<minIndex>1</minIndex>
+        <maxIndex>10</maxIndex>
+    </rollingPolicy>
+    <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+      <maxFileSize>10MB</maxFileSize>
+    </triggeringPolicy>
+  </appender>
+
+  <!-- Define packages which need to be debug as sample given below -->
+  <!-- <logger name="com.option3.engine" level="DEBUG" /> -->
+
+  <appender name="JIFFYTABLE_BACKUP"
+            class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <encoder>
+      <charset>UTF-8</charset>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS,UTC} UTC: ${PID:- } [%15.15thread] - %-40.40logger{39} : %replace(%msg%n ){'[Pp]assword*([^,]*),', 'password=xxxx,'}%n</pattern>
+    </encoder>
+    <file>${LOG_DIR}/JiffyTableBackup/jiffytablebackup.log</file>
+    <rollingPolicy
+            class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/JiffyTableBackup/jiffytablebackup-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+      <maxFileSize>50MB</maxFileSize>
+      <maxHistory>100</maxHistory>
+    </rollingPolicy>
+  </appender>
+
+  <property scope="context" name="AUDIT_LOG_NAME" value="${app.audit.log.file.name}" />
+  <property scope="context" name="AUDIT_LOG_DIR" value="${app.audit.log.dir}" />
+
+  <appender name="AUDIT_LOG"
+            class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+      <providers>
+        <!-- provides the timestamp -->
+        <timestamp/>
+        <arguments/>
+        <mdc/>
+        <message/>
+        <!-- provides the fields in the configured pattern -->
+        <pattern>
+          <!-- the pattern that defines what to include -->
+          <pattern>
+            {
+            "TAG": "JIFFY.AUDIT"
+            }
+          </pattern>
+        </pattern>
+        <stackTrace/>
+      </providers>
+    </encoder>
+    <file>${AUDIT_LOG_DIR}/${AUDIT_LOG_NAME}.log</file>
+    <rollingPolicy
+            class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${AUDIT_LOG_DIR}/${AUDIT_LOG_NAME}-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+      <!-- each file should be at most 100MB, keep 60 days worth of history, but at most 20GB -->
+      <maxFileSize>100MB</maxFileSize>
+      <maxHistory>60</maxHistory>
+      <totalSizeCap>20GB</totalSizeCap>
+    </rollingPolicy>
+  </appender>
+  <logger name="ai.jiffy.secure.client.auditlog.AuditLogger" level="INFO" additivity="false">
+    <appender-ref ref="AUDIT_LOG"/>
+  </logger>
+
+  <logger name="com.paanini.jiffy.utils.JiffyTableBackUpUtils" level="INFO" additivity="false">
+    <appender-ref ref="JIFFYTABLE_BACKUP"/>
+  </logger>
+
+  <root level="INFO">
+    <appender-ref ref="FILE_ROLL" />
+    <appender-ref ref="FILE_ERROR" />
+    <appender-ref ref="CONSOLE" />
+  </root>
+
+</configuration>

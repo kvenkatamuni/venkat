@@ -1,0 +1,175 @@
+image:
+  name: atlassian/default-image:2
+clone:
+  depth: 3
+
+options:
+  docker: true
+  size: 2x
+
+definitions:
+  caches:
+    sonar: /root/.sonar/cache
+  services:
+    docker:
+      memory: 4096
+  steps:
+    - step: &gittag
+        name: Git Tag
+        script:
+          - gitTagName="${BITBUCKET_BRANCH}_${BITBUCKET_BUILD_NUMBER}_$(date +"%d-%B-%Y_%H-%M-%S")"
+          - git tag -am "[skip ci] latest build number." "${gitTagName}"
+          - git push origin "${gitTagName}"
+          - echo "gitTagName=${gitTagName}" > pipelineenv.sh
+        artifacts:
+          - pipelineenv.sh
+    - step: &build
+        name: Build and Sonar scan
+        size: 2x
+        clone:
+          depth: 2
+        caches:
+          - maven
+        script:
+          - source pipelineenv.sh
+          - componentName="anthill"
+          - artefactTarName="${componentName}_${gitTagName}.tar.gz"
+          - cdTarName="${componentName}-CD.tar.gz"
+          - artefactTarUrl="https://repo.jiffy.ai/repository/jiffy-builds/${BITBUCKET_BRANCH}/${componentName}/${BITBUCKET_BUILD_NUMBER}/${artefactTarName}"
+          - cdTarUrl="https://repo.jiffy.ai/repository/jiffy-builds/${BITBUCKET_BRANCH}/${componentName}/${BITBUCKET_BUILD_NUMBER}/${cdTarName}"
+          - mkdir -p releaseartefacts
+          - cd anthill
+          - mvn -s ../settings.xml -B -DskipTests clean package
+          - cd ../cd-scripts/
+          - tar -cf ../releaseartefacts/${cdTarName} deployment.yml configuration.yml prerequisites.yml
+          - cd ..
+          - echo "cdTarUrl=${cdTarUrl}" >> pipelineenv.sh
+          - echo "artefactTarUrl=${artefactTarUrl}" >> pipelineenv.sh
+          - echo "artefactTarName=${artefactTarName}" >> pipelineenv.sh
+          - echo "cdTarName=${cdTarName}" >> pipelineenv.sh
+          - echo "componentName=${componentName}" >> pipelineenv.sh
+          - pipe: sonarsource/sonarcloud-scan:1.2.2
+            variables:
+              SONAR_HOST_URL: ${SONAR_HOST_URL}"
+              SONAR_SCANNER_OPTS: -Xmx1024m
+              SONAR_TOKEN: ${SONAR_TOKEN}
+              DEBUG: "true"
+          - cd anthill/target/
+          - tar -cvf ../../releaseartefacts/${artefactTarName} anthill-*-exec.jar ../../conf/
+        after-script:
+          - echo "_buildStatus=${BITBUCKET_EXIT_CODE}" >> pipelineenv.sh
+        services:
+          - docker
+        artifacts:
+          - pipelineenv.sh
+          - releaseartefacts/**
+    - step: &qualitygate
+        name: Sonar Quality Gate check
+        clone:
+          enabled: false
+        script:    
+          - pipe: sonarsource/sonarcloud-quality-gate:0.1.5
+            variables:
+              SONAR_TOKEN: ${SONAR_TOKEN}
+        after-script:
+          - echo "_qualityGateStatus=${BITBUCKET_EXIT_CODE}" >> pipelineenv.sh
+        artifacts:
+          - pipelineenv.sh
+    - step: &publish
+        name: Publish to Nexus
+        clone:
+          enabled: false
+        script:
+          - source pipelineenv.sh 
+          - cd releaseartefacts
+          - curl -v -u ${nexus_username}:${nexus_password} --upload-file ${artefactTarName} ${artefactTarUrl}
+          - curl -v -u ${nexus_username}:${nexus_password} --upload-file ${cdTarName} ${cdTarUrl}
+    - step: &vibranium
+        name: Publish to Vibranium
+        clone:
+          enabled: false
+        script:
+          - source pipelineenv.sh
+          - if [ ${_buildStatus:-1} == '0' ]; then buildStatus='Success'; else buildStatus='Failure'; fi
+          - if [ ${_qualityGateStatus:-1} == '0' ]; then qualityGateStatus='Success'; else qualityGateStatus='Failure'; fi
+          - 'curl -vS -X POST -u${vib_username}:${vib_password} -H "version: 1.1" "https://vibranium.jiffy.ai/backend/release/api/addbuild" -d "projectname=${componentName}" -d "reponame=${componentName}" -d "buildnumber=${BITBUCKET_BUILD_NUMBER}" -d "version=${version}" -d "gitcommitdetails=${BITBUCKET_COMMIT}" -d "tagname=${gitTagName}" -d "branchname=${BITBUCKET_BRANCH}" -d "qualitygatestatus=${qualityGateStatus}" -d "buildstatus=${buildStatus}" -d "artefactdetails=${artefactTarUrl}" -d "nexuscredentials=nexus" -d "nexusurl=repo.jiffy.ai" -d "cdscripturl=${cdTarUrl}"'
+    - step: &deploy
+        name: 'Deployment'
+        caches:
+          - docker
+        clone:
+          enabled: false
+        deployment: DIT-3
+        script:
+          - source pipelineenv.sh
+          - cmdOutput=$(docker run --rm -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} amazon/aws-cli ssm send-command --document-name "JiffyDeploymentAnsible" --document-version "\$DEFAULT" --targets '[{"Key":"InstanceIds","Values":["'$InstanceID'"]}]' --parameters '{"SourceType":["S3"],"SourceInfo":["{\"path\":\"https://vibraniumsrc.s3.ap-south-1.amazonaws.com/playbook/\"}"],"InstallDependencies":["False"],"PlaybookFile":["vibranium.yml"],"ExtraVariables":["'$componentName'='$artefactTarUrl' '$componentName'-VIBCD='$cdTarUrl' jiffyUserName='$jiffyAppUserName' jiffyUserPassword='$jiffyUserPassword'"],"Check":["False"],"Verbose":["-v"],"TimeoutSeconds":["3600"]}' --timeout-seconds 3600 --max-concurrency "50" --max-errors "0" --output-s3-bucket-name "vibraniumsrc" --output-s3-key-prefix "executions" --cloud-watch-output-config '{"CloudWatchLogGroupName":"vibraniumexecutions","CloudWatchOutputEnabled":true}' --region $AWS_DEFAULT_REGION)
+          - commandId=$(echo $cmdOutput | jq -r '.Command.CommandId')
+          - deploymentStatus=$(docker run --rm -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} amazon/aws-cli ssm wait command-executed --command-id $commandId --instance-id $InstanceID)
+          - echo $deploymentStatus
+          - '[ -z $deploymentStatus ] && echo "Success" || exit 1'
+    - step: &deploydit6
+        name: 'Deployment to dit6'
+        caches:
+          - docker
+        clone:
+          enabled: false
+        deployment: DIT-6
+        script:
+          - source pipelineenv.sh
+          - echo $InstanceID
+          - cmdOutput=$(docker run --rm -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} amazon/aws-cli ssm send-command --document-name "JiffyDeploymentAnsible" --document-version "\$DEFAULT" --targets '[{"Key":"InstanceIds","Values":["'$InstanceID'"]}]' --parameters '{"SourceType":["S3"],"SourceInfo":["{\"path\":\"https://vibraniumsrc.s3.ap-south-1.amazonaws.com/playbook/\"}"],"InstallDependencies":["False"],"PlaybookFile":["vibranium.yml"],"ExtraVariables":["'$componentName'='$artefactTarUrl' '$componentName'-VIBCD='$cdTarUrl' jiffyUserName='$jiffyAppUserName' jiffyUserPassword='$jiffyUserPassword'"],"Check":["False"],"Verbose":["-v"],"TimeoutSeconds":["3600"]}' --timeout-seconds 3600 --max-concurrency "50" --max-errors "0" --output-s3-bucket-name "vibraniumsrc" --output-s3-key-prefix "executions" --cloud-watch-output-config '{"CloudWatchLogGroupName":"vibraniumexecutions","CloudWatchOutputEnabled":true}' --region $AWS_DEFAULT_REGION)
+          - commandId=$(echo $cmdOutput | jq -r '.Command.CommandId')
+          - deploymentStatus=$(docker run --rm -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} amazon/aws-cli ssm wait command-executed --command-id $commandId --instance-id $InstanceID)
+          - echo $deploymentStatus
+          - '[ -z $deploymentStatus ] && echo "Success" || exit 1'
+        services:
+          - docker
+
+pipelines:
+  pull-requests:
+    '**': #this will run for all steps
+      - step: *gittag
+      - step: *build
+      - step: *qualitygate
+  branches:
+    JARVIS-DEV:
+      - step: *gittag
+      - step: *build
+      - step: *qualitygate
+      - step: *publish
+      - step: *vibranium
+      - step: *deploy
+    JARVIS-DEV-VAPT:
+      - step: *gittag
+      - step: *build
+      - step: *qualitygate
+      - step: *publish
+      - step: *vibranium
+      - step: *deploydit6
+
+    JARVIS-MAIN-4.4:
+      - step: *gittag
+      - step: *build
+      - step: *qualitygate
+      - step: *publish
+      - step: *vibranium
+      - step: 
+          <<: *deploy
+          deployment: DIT-4  
+    JARVIS-*:
+      - step: *gittag
+      - step: *build
+      - step: *qualitygate
+      - step: *publish
+      - step: *vibranium
+  custom:
+    Testenv:
+      - step: *gittag
+      - step: *build
+      - step: *qualitygate
+      - step: *publish
+      - step: *vibranium
+        #- step: *deploy
+  
+  
+
